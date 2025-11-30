@@ -162,63 +162,6 @@ class EWFImageReader(ImageReader):
 class FAT32Reader:
     """Minimal FAT32 filesystem reader."""
 
-    def detect_extension_mismatches(self):
-        """
-        Compare filename extensions of directory entries against actual magic bytes.
-        Returns a list of mismatches.
-        """
-        print("\n[*] Checking for extension/magic-byte mismatches...")
-
-        mismatches = []
-
-        # Read all directory entries (deleted AND existing)
-        dirs = self.scan_all_directories()
-
-        for entry in dirs:
-            name = entry["name"]
-            ext = Path(name).suffix.lower()
-
-            start_cluster = entry["start_cluster"]
-            size = entry["size"]
-
-            if start_cluster < 2 or size < 1:
-                continue
-
-            # Read first 16 bytes
-            cluster_data = self.read_cluster(start_cluster)
-            header = cluster_data[:16]
-
-            # Try match against known signatures
-            detected_type = None
-            detected_ext = None
-
-            for sig, (ftype, fext) in FILE_SIGNATURES.items():
-                if header.startswith(sig):
-                    detected_type = ftype
-                    detected_ext = fext
-                    break
-
-            # If no signature found → skip (unknown/plain text)
-            if detected_ext is None:
-                continue
-
-            # Formatted extensions
-            expected_ext = ext if ext else "(none)"
-
-            if ext != detected_ext:
-                print(
-                    f"[!] MISMATCH: {name} claims {expected_ext} but magic bytes show {detected_ext} ({detected_type})")
-                mismatches.append({
-                    "file": name,
-                    "claimed_extension": expected_ext,
-                    "real_extension": detected_ext,
-                    "type": detected_type,
-                    "cluster": start_cluster
-                })
-
-        print(f"[*] Mismatch scan complete. Found {len(mismatches)} issue(s).")
-        return mismatches
-
     def scan_all_directories(self, cluster_num=None, depth=0, results=None, visited=None):
         """
         Recursively scan directory starting at cluster_num, following cluster chains.

@@ -11,12 +11,26 @@ except NameError:
     PROGRAM_NAME = os.path.basename(sys.argv[0])
 
 # File signature dictionary (magic bytes)
+# File signature dictionary (magic bytes)
+# Includes common JPEG SOI variants
 FILE_SIGNATURES = {
-    b'\xFF\xD8\xFF': ('JPEG', '.jpg'),
+    # JPEG / common SOI variants (explicit)
+    b'\xFF\xD8\xFF\xE0': ('JPEG', '.jpg'),  # JFIF
+    b'\xFF\xD8\xFF\xE1': ('JPEG', '.jpg'),  # EXIF
+    b'\xFF\xD8\xFF\xEE': ('JPEG', '.jpg'),  # Adobe
+    b'\xFF\xD8\xFF\xDB': ('JPEG', '.jpg'),  # Quantization table
+    b'\xFF\xD8\xFF':     ('JPEG', '.jpg'),  # generic fallback (3-byte)
+
+    # PNG
     b'\x89PNG\r\n\x1a\n': ('PNG', '.png'),
+
+    # PDF
     b'%PDF': ('PDF', '.pdf'),
+
+    # ZIP-based formats (DOCX/XLSX/PPTX)
     b'PK\x03\x04': ('ZIP/DOCX/XLSX', '.zip'),
 }
+
 
 # # other file signatures
 # b'GIF87a': ('GIF', '.gif'),
@@ -147,6 +161,63 @@ class EWFImageReader(ImageReader):
 
 class FAT32Reader:
     """Minimal FAT32 filesystem reader."""
+
+    def detect_extension_mismatches(self):
+        """
+        Compare filename extensions of directory entries against actual magic bytes.
+        Returns a list of mismatches.
+        """
+        print("\n[*] Checking for extension/magic-byte mismatches...")
+
+        mismatches = []
+
+        # Read all directory entries (deleted AND existing)
+        dirs = self.scan_all_directories()
+
+        for entry in dirs:
+            name = entry["name"]
+            ext = Path(name).suffix.lower()
+
+            start_cluster = entry["start_cluster"]
+            size = entry["size"]
+
+            if start_cluster < 2 or size < 1:
+                continue
+
+            # Read first 16 bytes
+            cluster_data = self.read_cluster(start_cluster)
+            header = cluster_data[:16]
+
+            # Try match against known signatures
+            detected_type = None
+            detected_ext = None
+
+            for sig, (ftype, fext) in FILE_SIGNATURES.items():
+                if header.startswith(sig):
+                    detected_type = ftype
+                    detected_ext = fext
+                    break
+
+            # If no signature found → skip (unknown/plain text)
+            if detected_ext is None:
+                continue
+
+            # Formatted extensions
+            expected_ext = ext if ext else "(none)"
+
+            if ext != detected_ext:
+                print(
+                    f"[!] MISMATCH: {name} claims {expected_ext} but magic bytes show {detected_ext} ({detected_type})")
+                mismatches.append({
+                    "file": name,
+                    "claimed_extension": expected_ext,
+                    "real_extension": detected_ext,
+                    "type": detected_type,
+                    "cluster": start_cluster
+                })
+
+        print(f"[*] Mismatch scan complete. Found {len(mismatches)} issue(s).")
+        return mismatches
 
     def scan_all_directories(self, cluster_num=None, depth=0, results=None, visited=None):
         """
@@ -313,6 +384,179 @@ class FAT32Reader:
         offset = self.data_offset + (cluster_num - 2) * self.cluster_size
         self.file.seek(offset)
         return self.file.read(self.cluster_size)
+
+    def _read_file_bytes(self, start_cluster: int, num_bytes: int = 8192) -> bytes:
+        """
+        Read up to num_bytes of a file by following its cluster chain.
+        This works for both current (non-deleted) files and deleted files where
+        we at least can attempt sequential read from the start cluster.
+        """
+        if start_cluster < 2:
+            return b''
+
+        # Try to follow FAT chain; if FAT chain is broken (deleted), fall back to sequential read.
+        data = bytearray()
+        bytes_needed = num_bytes
+
+        # Attempt to follow cluster chain
+        chain = self.get_cluster_chain(start_cluster, max_chain=10000)
+        if chain:
+            for c in chain:
+                cluster_data = self.read_cluster(c)
+                take = min(len(cluster_data), bytes_needed)
+                data += cluster_data[:take]
+                bytes_needed -= take
+                if bytes_needed <= 0:
+                    break
+            return bytes(data)
+
+        # Fallback: sequential clusters (useful for deleted files)
+        current = start_cluster
+        while bytes_needed > 0 and current >= 2:
+            cluster_data = self.read_cluster(current)
+            if not cluster_data:
+                break
+            take = min(len(cluster_data), bytes_needed)
+            data += cluster_data[:take]
+            bytes_needed -= take
+            current += 1  # sequential fallback
+        return bytes(data)
+
+    def list_directory_entries(self, cluster_num=None, depth=0, results=None, visited=None):
+        """
+        Collect directory entries (both deleted and existing) from a directory cluster.
+        Returns list of dicts with keys: name, ext, size, start_cluster, attributes, deleted (bool).
+        """
+        if results is None:
+            results = []
+        if visited is None:
+            visited = set()
+        if cluster_num is None:
+            cluster_num = self.root_cluster
+
+        if cluster_num in visited:
+            return results
+        visited.add(cluster_num)
+
+        clusters = self.get_cluster_chain(cluster_num)
+        if not clusters:
+            clusters = [cluster_num]
+
+        entry_size = 32
+        for c in clusters:
+            cluster_data = self.read_cluster(c)
+            num_entries = len(cluster_data) // entry_size
+            for i in range(num_entries):
+                entry = cluster_data[i * entry_size:(i + 1) * entry_size]
+                if len(entry) < 32:
+                    continue
+                first = entry[0]
+                if first == 0x00:
+                    # end of entries
+                    continue
+                attr = entry[11]
+                if attr == 0x0F:
+                    # LFN entry — skip
+                    continue
+
+                # parse name and extension (handle deleted marker 0xE5)
+                deleted_flag = (first == 0xE5)
+                raw_name = entry[0:8]
+                if deleted_flag:
+                    # restore placeholder for first character
+                    raw_name = b'_' + entry[1:8]
+                ext = entry[8:11]
+
+                name = raw_name.rstrip(b' \x00').decode('ascii', errors='replace')
+                ext_str = ext.rstrip(b' \x00').decode('ascii', errors='replace').lower()
+                full_name = f"{name}.{ext_str}" if ext_str else name
+
+                # size and start cluster
+                size = struct.unpack('<I', entry[28:32])[0]
+                cluster_high = struct.unpack("<H", entry[20:22])[0]
+                cluster_low = struct.unpack("<H", entry[26:28])[0]
+                start_cluster = (cluster_high << 16) | cluster_low
+
+                # ignore volume labels
+                if attr & 0x08:
+                    continue
+
+                results.append({
+                    'name': full_name,
+                    'ext': ('.' + ext_str) if ext_str else '',
+                    'size': size,
+                    'start_cluster': start_cluster,
+                    'attributes': attr,
+                    'deleted': deleted_flag,
+                    'is_directory': bool(attr & 0x10)
+                })
+
+                # recurse into subdirectories
+                if attr & 0x10:
+                    subdir_cluster = start_cluster
+                    if subdir_cluster >= 2 and subdir_cluster not in visited:
+                        self.list_directory_entries(subdir_cluster, depth+1, results, visited)
+
+        return results
+
+    def detect_extension_mismatches(self, max_read_bytes: int = 8192) -> List[dict]:
+        """
+        Detect files whose claimed extension does not match the magic bytes found
+        within the first max_read_bytes of the file content.
+        Returns list of mismatch dicts.
+        """
+        print("\n[*] Running extension mismatch check...")
+        mismatches = []
+
+        entries = self.list_directory_entries()
+
+        # Prepare sorted signature list (longest first)
+        sig_items = sorted(FILE_SIGNATURES.items(), key=lambda x: -len(x[0]))
+
+        for e in entries:
+            # skip directories
+            if e.get('is_directory'):
+                continue
+            claimed_ext = e.get('ext', '').lower()
+            start_cluster = e.get('start_cluster', 0)
+            size = e.get('size', 0)
+            name = e.get('name')
+
+            if start_cluster < 2 or size == 0:
+                # nothing to read
+                continue
+
+            data = self._read_file_bytes(start_cluster, num_bytes=max_read_bytes)
+            if not data:
+                continue
+
+            detected_ext = None
+            detected_type = None
+
+            # search anywhere in data for signatures (not only at start)
+            for sig, (ftype, fext) in sig_items:
+                if sig in data:
+                    detected_ext = fext
+                    detected_type = ftype
+                    break
+
+            # If we found a signature and it doesn't match the claimed ext -> report
+            if detected_ext is not None:
+                # normalize claimed ext (ensure leading dot)
+                norm_claimed = claimed_ext if claimed_ext.startswith('.') or claimed_ext == '' else '.' + claimed_ext
+                if norm_claimed != detected_ext:
+                    mismatches.append({
+                        'name': name,
+                        'claimed_extension': norm_claimed or '(none)',
+                        'detected_extension': detected_ext,
+                        'detected_type': detected_type,
+                        'start_cluster': start_cluster
+                    })
+                    print(f"[!] MISMATCH: {name} claims {norm_claimed or '(none)'} but magic bytes show {detected_ext} ({detected_type})")
+
+        print(f"[*] Mismatch scan complete. Found {len(mismatches)} issue(s).")
+        return mismatches
+
 
     def scan_deleted_entries(self, cluster_num: int = None) -> List[dict]:
         """
@@ -571,6 +815,15 @@ def main():
             print(f"\n[*] Found {len(results)} potential files")
             print("\nTo extract a file, run:")
             print(f"  python3 {PROGRAM_NAME} <image> extract <offset> <output_file>")
+
+        elif command == "mismatch":
+            mismatches = reader.detect_extension_mismatches()
+            if not mismatches:
+                print("[*] No extension mismatches found.")
+            else:
+                print("\n[*] Summary of mismatched files:")
+                for m in mismatches:
+                    print(f"  - {m['name']}: {m['claimed_extension']} -> {m['detected_extension']} ({m['detected_type']})")
 
         elif command == "recover":
             if len(sys.argv) < 6:

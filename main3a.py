@@ -550,9 +550,14 @@ class FAT32Reader:
                         'claimed_extension': norm_claimed or '(none)',
                         'detected_extension': detected_ext,
                         'detected_type': detected_type,
-                        'start_cluster': start_cluster
+                        'start_cluster': start_cluster,
+                        'size': size
                     })
-                    print(f"[!] MISMATCH: {name} claims {norm_claimed or '(none)'} but magic bytes show {detected_ext} ({detected_type})")
+                    # print(f"[!] MISMATCH: {name} claims {norm_claimed or '(none)'} but magic bytes show {detected_ext} ({detected_type})")
+                    print(
+                        f"[!] MISMATCH: {name} claims {norm_claimed or '(none)'} but magic bytes show {detected_ext} ({detected_type})\n"
+                        f"    -> cluster {start_cluster}, size {size}"
+                    )
 
         print(f"[*] Mismatch scan complete. Found {len(mismatches)} issue(s).")
         return mismatches

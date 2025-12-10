@@ -12,9 +12,9 @@ except NameError:
 
 # File signature dictionary (magic bytes)
 # File signature dictionary (magic bytes)
-# Includes common JPEG SOI variants
+# Includes common JPEG start of image (SOI) variants
 FILE_SIGNATURES = {
-    # JPEG / common SOI variants (explicit)
+    # JPEG / common start of image variants (explicit)
     b'\xFF\xD8\xFF\xE0': ('JPEG', '.jpg'),  # JFIF
     b'\xFF\xD8\xFF\xE1': ('JPEG', '.jpg'),  # EXIF
     b'\xFF\xD8\xFF\xEE': ('JPEG', '.jpg'),  # Adobe
@@ -612,7 +612,7 @@ class FAT32Reader:
         # NEW: return data so preview can access it
         return recovered_data
 
-    def preview_data(self, data, num_bytes=256):
+    def preview_data(self, data, num_bytes=64):
         preview = data[:num_bytes]
 
         # Hex view
@@ -788,7 +788,7 @@ def main():
 
             if data:
                 print(f"[+] File recovered to: {output_file}")
-                print(f"[*] Showing first 256 bytes:\n")
+                print(f"[*] Showing first 64 bytes:\n")
                 reader.preview_data(data)
 
         elif command == "extract":

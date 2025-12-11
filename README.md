@@ -11,10 +11,11 @@ It is recommended to run this software tool in Windows Subsytem for Linux (WSL).
 
 ## Usage Instructions
 1. Open your preferred shell and launch WSL (e.g., by running wsl or opening your existing distribution such as Ubuntu). Then navigate to the CIS_542_Project directory.
-2. It is recommended to begin with the deleted command `python3 main.py <image> deleted`, which will return potential deleted files and will print an example command of how to recover.
+2. It is recommended to begin with the deleted command `python3 main.py <image filepath> deleted`, which will return potential deleted files and will print an example command of how to recover.
     1. Example deleted command `python3 main.py DiskImage/E01_v1.E01 deleted`
-3. To find files that were hidden by changing the extension, use the mismatch command  
-4. To recover a deleted or hidden file, use the recover command with the following format `python3 main.py <img file path> recover <offset> <size of file in bytes> <output filename>`. Recovered files will appear in the project folder with the output filename. If recovering from mismatch, use the expected/true extension with the otuput filename
+3. To find files that were hidden by changing the extension, use the mismatch command `python3 main.py <image> mismatch`
+    1. Example mismatch command `python3 main.py DiskImage/E01_v1.E01 mismatch`     
+5. To recover a deleted or hidden file, use the recover command with the following format `python3 main.py <image file path> recover <offset> <size of file in bytes> <output filename>`. Recovered files will appear in the project folder with the output filename. If recovering from mismatch, use the expected/true extension with the otuput filename
     1. Example recover command `python3 main.py DiskImage/E01_v1.E01 recover 9800 7338739 _ELETE~1.JPG`
 
 ## Troubleshooting

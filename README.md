@@ -1,9 +1,9 @@
 # Installation and Usage Guideline
 ## System Requirements
-It is recommended to run this software tool in Windows Subsytem for Linux (WSL). Libewf library is required to use this software tool. Instructions for how to install this library are shown in the "Installation Steps" section. User of this tool with other operating systems may be more difficult to install the libewf library and may have unexpected behavior. 
+It is recommended to run this software tool in Windows Subsytem for Linux (WSL). Libewf library is required to use this software tool. Instructions for how to install this library are shown in the "Installation Steps" section. Use of this tool with other operating systems may be more difficult to install the libewf library and may have unexpected behavior. 
 ## Installation Steps
 1. Clone folder `git clone https://github.com/TrimRio/CIS_542_Project` or Download Zip folder from this [repository](https://github.com/TrimRio/CIS_542_Project).  
-2. Download the DiskImage folder from [here](https://umassd-my.sharepoint.com/:f:/r/personal/trioux_umassd_edu/Documents/Documents/CIS_542_ProjectShare?csf=1&web=1&e=ggK5tA) and place in the project folder that was cloned/downloaded from step 1.
+2. Download the DiskImage folder from [this OneDrive folder](https://umassd-my.sharepoint.com/:f:/r/personal/trioux_umassd_edu/Documents/Documents/CIS_542_ProjectShare?csf=1&web=1&e=ggK5tA) and place in the project folder that was cloned/downloaded from step 1.
 3. Install libewf in WSL
     1. `Sudo apt update`
     2. `Sudo apt install python3-libewf`
@@ -19,5 +19,5 @@ It is recommended to run this software tool in Windows Subsytem for Linux (WSL).
     1. Example recover command `python3 main.py DiskImage/E01_v1.E01 recover 9800 7338739 _ELETE~1.JPG`
 
 ## Troubleshooting
-- Ensure diskimage is located in folder and inside the project folder i.e., ~/CIS_542_Project/DiskImage/E01_v1.E01
+- Ensure the disk image is located in folder and inside the project folder i.e., ~/CIS_542_Project/DiskImage/E01_v1.E01
 - See [here](https://github.com/libyal/libewf/wiki/Troubleshooting) for troubleshooting tips related to library-pyewf

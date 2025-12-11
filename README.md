@@ -1,6 +1,6 @@
 # Installation and Usage Guideline
 ## System Requirements
-It is recommended to run this software tool in Windows Subsytem for Linux (WSL). Libewf library is required to use this software tool. Instructions are shown in the "Installation Steps" section. User of this tool with other operating systems may be more difficult to install the libewf library and may have unexpected behavior. 
+It is recommended to run this software tool in Windows Subsytem for Linux (WSL). Libewf library is required to use this software tool. Instructions for how to install this library are shown in the "Installation Steps" section. User of this tool with other operating systems may be more difficult to install the libewf library and may have unexpected behavior. 
 ## Installation Steps
 1. Clone folder `git clone https://github.com/TrimRio/CIS_542_Project` or Download Zip folder from this [repository](https://github.com/TrimRio/CIS_542_Project).  
 2. Download the DiskImage folder from [here](https://umassd-my.sharepoint.com/:f:/r/personal/trioux_umassd_edu/Documents/Documents/CIS_542_ProjectShare?csf=1&web=1&e=ggK5tA) and place in the project folder that was cloned/downloaded from step 1.
@@ -15,7 +15,7 @@ It is recommended to run this software tool in Windows Subsytem for Linux (WSL).
     1. Example deleted command `python3 main.py DiskImage/E01_v1.E01 deleted`
 3. To find files that were hidden by changing the extension, use the mismatch command `python3 main.py <image> mismatch`
     1. Example mismatch command `python3 main.py DiskImage/E01_v1.E01 mismatch`     
-5. To recover a deleted or hidden file, use the recover command with the following format `python3 main.py <image file path> recover <offset> <size of file in bytes> <output filename>`. Recovered files will appear in the project folder with the output filename. If recovering from mismatch, use the expected/true extension with the otuput filename
+4. To recover a deleted or hidden file, use the recover command with the following format `python3 main.py <image file path> recover <offset> <size of file in bytes> <output filename>`. Recovered files will appear in the project folder with the output filename. If recovering from mismatch, use the expected/true extension with the otuput filename
     1. Example recover command `python3 main.py DiskImage/E01_v1.E01 recover 9800 7338739 _ELETE~1.JPG`
 
 ## Troubleshooting
